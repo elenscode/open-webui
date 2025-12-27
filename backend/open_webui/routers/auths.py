@@ -3,6 +3,7 @@ import uuid
 import time
 import datetime
 import logging
+import requests
 from aiohttp import ClientSession
 import urllib
 
@@ -37,6 +38,7 @@ from open_webui.env import (
     WEBUI_AUTH_COOKIE_SECURE,
     WEBUI_AUTH_SIGNOUT_REDIRECT_URL,
     ENABLE_INITIAL_ADMIN_SIGNUP,
+    REFRESH_TOKEN_URL,
 )
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse, Response, JSONResponse
@@ -500,6 +502,35 @@ async def ldap_auth(request: Request, response: Response, form_data: LdapForm):
     except Exception as e:
         log.error(f"LDAP authentication error: {str(e)}")
         raise HTTPException(400, detail="LDAP authentication failed.")
+
+
+@router.post("/refresh")
+async def refresh_session(request: Request):
+    if not REFRESH_TOKEN_URL:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="REFRESH_TOKEN_URL not defined",
+        )
+
+    auth_header = request.headers.get("Authorization")
+    if not auth_header:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=ERROR_MESSAGES.INVALID_TOKEN,
+        )
+
+    try:
+        res = requests.post(
+            REFRESH_TOKEN_URL, headers={"Authorization": auth_header}
+        )
+        res.raise_for_status()
+        return res.json()
+    except Exception as e:
+        log.error(f"Error refreshing token: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=ERROR_MESSAGES.INVALID_TOKEN,
+        )
 
 
 ############################
