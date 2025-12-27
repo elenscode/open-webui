@@ -44,7 +44,7 @@
 	import 'tippy.js/dist/tippy.css';
 
 	import { executeToolServer, getBackendConfig, getVersion } from '$lib/apis';
-	import { getSessionUser, userSignOut } from '$lib/apis/auths';
+	import { getSessionUser, userSignOut, refreshSession } from '$lib/apis/auths';
 	import { getAllTags, getChatList } from '$lib/apis/chats';
 	import { chatCompletion } from '$lib/apis/openai';
 
@@ -87,6 +87,7 @@
 
 	let loaded = false;
 	let tokenTimer = null;
+	let requestTokenTimer = null;
 
 	let showRefresh = false;
 
@@ -600,6 +601,17 @@
 		}
 	};
 
+	const checkRequestToken = async (tokenName) => {
+		const requestToken = localStorage.getItem(tokenName);
+		if (requestToken) {
+			const res = await refreshSession(requestToken);
+			if (res) {
+				localStorage[tokenName] = res.token;
+				await user.set(await getSessionUser(localStorage[tokenName]));
+			}
+		}
+	};
+
 	onMount(async () => {
 		let touchstartY = 0;
 
@@ -714,6 +726,11 @@
 					clearInterval(tokenTimer);
 				}
 				tokenTimer = setInterval(checkTokenExpiry, 15000);
+
+				if (requestTokenTimer) {
+					clearInterval(requestTokenTimer);
+				}
+				requestTokenTimer = setInterval(checkRequestToken, 300000);
 			} else {
 				$socket?.off('events', chatEventHandler);
 				$socket?.off('events:channel', channelEventHandler);
